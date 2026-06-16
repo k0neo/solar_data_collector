@@ -37,6 +37,10 @@ check:
 	@echo "Script syntax checks passed."
 
 preflight:
-	sm-preflight /usr/local/etc/solar-monitor.conf
+	@sm-preflight /usr/local/etc/solar-monitor.conf || { \
+		echo ""; \
+		echo "Preflight failed. If the RTL-SDR is not connected, this is expected."; \
+		exit 1; \
+	}
 
 .PHONY: all install clean check preflight
