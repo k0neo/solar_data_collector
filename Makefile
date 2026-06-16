@@ -11,6 +11,8 @@ install:
 	install -d $(DESTDIR)$(BINDIR)
 	sed 's|@PREFIX@|$(PREFIX)|g' scripts/sm-capture.in > $(DESTDIR)$(BINDIR)/sm-capture
 	chmod 755 $(DESTDIR)$(BINDIR)/sm-capture
+	sed 's|@PREFIX@|$(PREFIX)|g' scripts/sm-preflight.in > $(DESTDIR)$(BINDIR)/sm-preflight
+	chmod 755 $(DESTDIR)$(BINDIR)/sm-preflight
 
 	@if [ "$(OS)" = "freebsd" ]; then \
 		install -d $(DESTDIR)$(PREFIX)/etc; \

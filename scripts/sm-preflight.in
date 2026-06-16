@@ -1,0 +1,56 @@
+#!/bin/sh
+
+CONFIG_FILE="${1:-/usr/local/etc/solar-monitor.conf}"
+
+echo "solar-monitor preflight"
+echo "======================="
+echo
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "FAIL: config file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+echo "OK: config file found: $CONFIG_FILE"
+
+if ! command -v rtl_power >/dev/null 2>&1; then
+    echo "FAIL: rtl_power not found in PATH"
+    exit 1
+fi
+
+echo "OK: rtl_power found: $(command -v rtl_power)"
+
+if ! command -v rtl_test >/dev/null 2>&1; then
+    echo "FAIL: rtl_test not found in PATH"
+    exit 1
+fi
+
+echo "OK: rtl_test found: $(command -v rtl_test)"
+
+echo
+echo "Checking for RTL-SDR device..."
+echo
+
+RTL_OUTPUT="$(rtl_test -t 2>&1)"
+RTL_STATUS="$?"
+
+echo "$RTL_OUTPUT"
+
+if echo "$RTL_OUTPUT" | grep -qi "No supported devices found"; then
+    echo
+    echo "FAIL: no supported RTL-SDR device detected"
+    echo "Connect the RTL-SDR v4 and try again."
+    exit 1
+fi
+
+if [ "$RTL_STATUS" -ne 0 ]; then
+    echo
+    echo "FAIL: rtl_test returned status $RTL_STATUS"
+    exit "$RTL_STATUS"
+fi
+
+echo
+echo "OK: RTL-SDR appears to be available"
+echo
+echo "Preflight complete."
+exit 0
