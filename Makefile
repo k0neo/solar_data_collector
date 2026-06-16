@@ -31,4 +31,9 @@ clean:
 	find src -name '*.o' -delete
 	find src -name '*.mod' -delete
 
+check:
+	sh -n scripts/sm-capture.in
+	sh -n scripts/sm-preflight.in
+	@echo "Script syntax checks passed."
+
 .PHONY: all install clean
