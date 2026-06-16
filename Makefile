@@ -36,4 +36,7 @@ check:
 	sh -n scripts/sm-preflight.in
 	@echo "Script syntax checks passed."
 
-.PHONY: all install clean
+preflight:
+	sm-preflight /usr/local/etc/solar-monitor.conf
+
+.PHONY: all install clean check preflight
