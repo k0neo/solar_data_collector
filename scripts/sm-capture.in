@@ -1,0 +1,99 @@
+#!/bin/sh
+
+CONFIG_FILE="${1:-/usr/local/etc/solar-monitor.conf}"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Config file not found: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+get_config() {
+    section="$1"
+    key="$2"
+
+    awk -F= -v section="[$section]" -v key="$key" '
+        $0 == section {
+            in_section = 1
+            next
+        }
+
+        /^\[/ {
+            in_section = 0
+        }
+
+        in_section {
+            lhs = $1
+            rhs = $0
+            sub(/^[^=]*=/, "", rhs)
+
+            gsub(/^[ \t]+|[ \t]+$/, "", lhs)
+            gsub(/^[ \t]+|[ \t]+$/, "", rhs)
+
+            if (lhs == key) {
+                print rhs
+                exit
+            }
+        }
+    ' "$CONFIG_FILE"
+}
+
+RAW_DIR="$(get_config paths raw_dir)"
+LOG_FILE="$(get_config paths log_file)"
+
+FSTART="$(get_config capture frequency_start_mhz)"
+FEND="$(get_config capture frequency_end_mhz)"
+BIN_KHZ="$(get_config capture bin_size_khz)"
+INTERVAL="$(get_config capture interval_seconds)"
+DURATION_MIN="$(get_config capture duration_minutes)"
+GAIN="$(get_config capture gain)"
+DRIVER="$(get_config capture driver)"
+
+if [ "$DRIVER" != "rtl_power" ]; then
+    echo "Unsupported capture driver: $DRIVER" >&2
+    exit 1
+fi
+
+if ! command -v rtl_power >/dev/null 2>&1; then
+    echo "rtl_power not found in PATH" >&2
+    exit 1
+fi
+
+if [ -z "$RAW_DIR" ]; then
+    echo "raw_dir is not set in config" >&2
+    exit 1
+fi
+
+if [ -z "$LOG_FILE" ]; then
+    echo "log_file is not set in config" >&2
+    exit 1
+fi
+
+mkdir -p "$RAW_DIR"
+
+LOG_DIR="$(dirname "$LOG_FILE")"
+mkdir -p "$LOG_DIR"
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+OUTFILE="$RAW_DIR/solar_${STAMP}.csv"
+
+FREQ_SPEC="${FSTART}M:${FEND}M:${BIN_KHZ}k"
+DURATION="${DURATION_MIN}m"
+
+echo "$(date -u): starting capture: $OUTFILE" >> "$LOG_FILE"
+echo "$(date -u): frequency spec: $FREQ_SPEC interval=${INTERVAL}s duration=$DURATION gain=$GAIN" >> "$LOG_FILE"
+
+if [ "$GAIN" = "auto" ]; then
+    rtl_power -f "$FREQ_SPEC" -i "$INTERVAL" -e "$DURATION" "$OUTFILE" >> "$LOG_FILE" 2>&1
+else
+    rtl_power -f "$FREQ_SPEC" -i "$INTERVAL" -e "$DURATION" -g "$GAIN" "$OUTFILE" >> "$LOG_FILE" 2>&1
+fi
+
+STATUS="$?"
+
+if [ "$STATUS" -ne 0 ]; then
+    echo "$(date -u): capture failed with status $STATUS" >> "$LOG_FILE"
+    exit "$STATUS"
+fi
+
+echo "$(date -u): capture complete: $OUTFILE" >> "$LOG_FILE"
+exit 0

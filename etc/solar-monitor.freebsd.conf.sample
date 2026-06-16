@@ -1,0 +1,49 @@
+[station]
+callsign = K0NEO
+name = K0NEO Solar Radio Monitor
+grid =
+latitude =
+longitude =
+timezone = America/Chicago
+
+[hardware]
+sdr_device = 0
+sdr_model = RTL-SDR v4
+antenna = MLA-30
+antenna_description = Active loop antenna
+
+[capture]
+driver = rtl_power
+frequency_start_mhz = 18
+frequency_end_mhz = 30
+bin_size_khz = 10
+interval_seconds = 10
+duration_minutes = 15
+gain = auto
+
+[paths]
+raw_dir = /var/db/solar-monitor/raw
+processed_dir = /var/db/solar-monitor/processed
+index_dir = /var/db/solar-monitor/index
+publish_dir = /usr/local/www/solar-monitor
+bbs_dir = /sbbs/text/solar
+log_file = /var/log/solar-monitor.log
+
+[processing]
+enabled = true
+reject_spikes = true
+noise_floor_method = median
+smoothing_window = 5
+
+[index]
+enabled = true
+name = LSI
+baseline_days = 30
+
+[publishing]
+web_enabled = true
+bbs_enabled = true
+text_enabled = true
+html_enabled = true
+csv_enabled = true
+

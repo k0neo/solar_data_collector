@@ -1,0 +1,49 @@
+[station]
+callsign = NOCALL
+name = Solar Radio Monitor
+grid =
+latitude =
+longitude =
+timezone = UTC
+
+[hardware]
+sdr_device = 0
+sdr_model = RTL-SDR v4
+antenna = MLA-30
+antenna_description = Active loop antenna
+
+[capture]
+driver = rtl_power
+frequency_start_mhz = 18
+frequency_end_mhz = 30
+bin_size_khz = 10
+interval_seconds = 10
+duration_minutes = 15
+gain = auto
+
+[paths]
+raw_dir = /var/lib/solar-monitor/raw
+processed_dir = /var/lib/solar-monitor/processed
+index_dir = /var/lib/solar-monitor/index
+publish_dir = /var/www/html/solar-monitor
+bbs_dir = /var/lib/solar-monitor/bbs
+log_file = /var/log/solar-monitor/solar-monitor.log
+
+[processing]
+enabled = true
+reject_spikes = true
+noise_floor_method = median
+smoothing_window = 5
+
+[index]
+enabled = true
+name = LSI
+baseline_days = 30
+
+[publishing]
+web_enabled = true
+bbs_enabled = false
+text_enabled = true
+html_enabled = true
+csv_enabled = true
+

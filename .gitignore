@@ -1,0 +1,7 @@
+*~
+*.o
+*.mod
+*.csv
+*.log
+data/
+build/
