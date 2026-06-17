@@ -5,3 +5,6 @@
 *.log
 data/
 build/
+
+# Keep real capture data out of git, but allow small test fixtures.
+!tests/sample-data/*.csv
