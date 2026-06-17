@@ -3,16 +3,19 @@ OS?=freebsd
 
 BINDIR=$(PREFIX)/bin
 
+SCRIPTS=sm-capture sm-preflight sm-config-test
+
 all:
 	@echo "No compiled targets yet."
 	@echo "Run 'make install OS=freebsd' or 'make install OS=linux'."
 
 install:
 	install -d $(DESTDIR)$(BINDIR)
-	sed 's|@PREFIX@|$(PREFIX)|g' scripts/sm-capture.in > $(DESTDIR)$(BINDIR)/sm-capture
-	chmod 755 $(DESTDIR)$(BINDIR)/sm-capture
-	sed 's|@PREFIX@|$(PREFIX)|g' scripts/sm-preflight.in > $(DESTDIR)$(BINDIR)/sm-preflight
-	chmod 755 $(DESTDIR)$(BINDIR)/sm-preflight
+	@for script in $(SCRIPTS); do \
+		sed 's|@PREFIX@|$(PREFIX)|g' scripts/$$script.in > $(DESTDIR)$(BINDIR)/$$script; \
+		chmod 755 $(DESTDIR)$(BINDIR)/$$script; \
+		echo "Installed $(DESTDIR)$(BINDIR)/$$script"; \
+	done
 
 	@if [ "$(OS)" = "freebsd" ]; then \
 		install -d $(DESTDIR)$(PREFIX)/etc; \
