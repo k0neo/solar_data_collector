@@ -3,17 +3,28 @@ program sm_process
     implicit none
 
     character(len=1024) :: infile
+    character(len=1024) :: processed_dir
+    character(len=1024) :: summary_file
     character(len=262144) :: line
     character(len=256) :: token
-    character(len=64) :: first_date, first_time
-    character(len=64) :: last_date, last_time
+    character(len=64) :: first_date
+    character(len=64) :: first_time
+    character(len=64) :: last_date
+    character(len=64) :: last_time
+    character(len=64) :: peak_date
+    character(len=64) :: peak_time
+
     integer :: argc
     integer :: unit
+    integer :: out_unit
     integer :: ios
     integer :: pos
     integer :: bad_values
     integer :: line_count
+
     integer(int64) :: sample_count
+    integer(int64) :: row_sample_index
+
     real(real64) :: f_start
     real(real64) :: f_end
     real(real64) :: bin_width
@@ -25,25 +36,32 @@ program sm_process
     real(real64) :: min_db
     real(real64) :: max_db
     real(real64) :: sum_db
+    real(real64) :: mean_db
     real(real64) :: current_freq
     real(real64) :: peak_freq
     real(real64) :: peak_row_start
     real(real64) :: peak_row_end
     real(real64) :: peak_power
-    integer(int64) :: row_sample_index
-    character(len=64) :: peak_date
-    character(len=64) :: peak_time
+
     logical :: found
     logical :: have_data
 
     argc = command_argument_count()
 
-    if (argc /= 1) then
-        write(*,'(a)') 'Usage: sm-process <rtl_power_csv_file>'
+    if (argc < 1 .or. argc > 2) then
+        write(*,'(a)') 'Usage: sm-process <rtl_power_csv_file> [processed_dir]'
         stop 1
     end if
 
     call get_command_argument(1, infile)
+
+    if (argc == 2) then
+        call get_command_argument(2, processed_dir)
+    else
+        processed_dir = '/var/db/solar-monitor/processed'
+    end if
+
+    call make_summary_path(infile, processed_dir, summary_file)
 
     open(newunit=unit, file=trim(infile), status='old', action='read', iostat=ios)
 
@@ -55,22 +73,27 @@ program sm_process
     line_count = 0
     sample_count = 0_int64
     bad_values = 0
+
     sum_db = 0.0_real64
     min_db = huge(min_db)
     max_db = -huge(max_db)
+    min_freq = huge(min_freq)
+    max_freq = -huge(max_freq)
+
+    first_bin_width = 0.0_real64
+
     peak_power = -huge(peak_power)
     peak_freq = 0.0_real64
     peak_row_start = 0.0_real64
     peak_row_end = 0.0_real64
-    peak_date = ''
-    peak_time = ''
-    min_freq = huge(min_freq)
-    max_freq = -huge(max_freq)
-    first_bin_width = 0.0_real64
+
     first_date = ''
     first_time = ''
     last_date = ''
     last_time = ''
+    peak_date = ''
+    peak_time = ''
+
     have_data = .false.
 
     do
@@ -124,7 +147,7 @@ program sm_process
         do
             call next_token(line, pos, token, found)
             if (.not. found) exit
-            
+
             read(token, *, iostat=ios) value
 
             if (ios /= 0) then
@@ -133,9 +156,13 @@ program sm_process
             end if
 
             sample_count = sample_count + 1_int64
-            sum_db = sum_db + value
             row_sample_index = row_sample_index + 1_int64
+            sum_db = sum_db + value
+
             current_freq = f_start + (real(row_sample_index, real64) - 0.5_real64) * bin_width
+
+            if (value < min_db) min_db = value
+            if (value > max_db) max_db = value
 
             if (value > peak_power) then
                 peak_power = value
@@ -145,9 +172,6 @@ program sm_process
                 peak_date = last_date
                 peak_time = last_time
             end if
-
-            if (value < min_db) min_db = value
-            if (value > max_db) max_db = value
 
             have_data = .true.
         end do
@@ -165,10 +189,31 @@ program sm_process
         stop 1
     end if
 
+    mean_db = sum_db / real(sample_count, real64)
+
+    call execute_command_line('mkdir -p ' // trim(processed_dir), exitstat=ios)
+
+    if (ios /= 0) then
+        write(*,'(a)') 'FAIL: could not create processed directory: ' // trim(processed_dir)
+        stop 1
+    end if
+
+    open(newunit=out_unit, file=trim(summary_file), status='replace', action='write', iostat=ios)
+
+    if (ios /= 0) then
+        write(*,'(a)') 'FAIL: could not write summary file: ' // trim(summary_file)
+        stop 1
+    end if
+
+    call write_summary(out_unit)
+
+    close(out_unit)
+
     write(*,'(a)') 'solar-monitor process'
     write(*,'(a)') '====================='
     write(*,'(a)') ''
     write(*,'(a)') 'Input file: ' // trim(infile)
+    write(*,'(a)') 'Summary file: ' // trim(summary_file)
     write(*,'(a,i0)') 'Records: ', line_count
     write(*,'(a,i0)') 'Power samples: ', sample_count
     write(*,'(a)') ''
@@ -181,7 +226,7 @@ program sm_process
     write(*,'(a)') ''
     write(*,'(a,f10.2,a)') 'Minimum power: ', min_db, ' dB'
     write(*,'(a,f10.2,a)') 'Maximum power: ', max_db, ' dB'
-    write(*,'(a,f10.2,a)') 'Mean power:    ', sum_db / real(sample_count, real64), ' dB'
+    write(*,'(a,f10.2,a)') 'Mean power:    ', mean_db, ' dB'
     write(*,'(a)') ''
     write(*,'(a,f12.0,a)') 'Peak frequency: ', peak_freq, ' Hz'
     write(*,'(a,f10.2,a)') 'Peak power:     ', peak_power, ' dB'
@@ -190,6 +235,61 @@ program sm_process
     write(*,'(a,i0)') 'Bad values: ', bad_values
 
 contains
+
+    subroutine write_summary(out_unit)
+        integer, intent(in) :: out_unit
+
+        write(out_unit,'(a)') 'input_file=' // trim(infile)
+        write(out_unit,'(a,i0)') 'records=', line_count
+        write(out_unit,'(a,i0)') 'power_samples=', sample_count
+        write(out_unit,'(a,a,1x,a)') 'first_timestamp=', trim(first_date), trim(first_time)
+        write(out_unit,'(a,a,1x,a)') 'last_timestamp=', trim(last_date), trim(last_time)
+        write(out_unit,'(a,f0.0)') 'lowest_frequency_hz=', min_freq
+        write(out_unit,'(a,f0.0)') 'highest_frequency_hz=', max_freq
+        write(out_unit,'(a,f0.2)') 'bin_width_hz=', first_bin_width
+        write(out_unit,'(a,f0.2)') 'minimum_power_db=', min_db
+        write(out_unit,'(a,f0.2)') 'maximum_power_db=', max_db
+        write(out_unit,'(a,f0.2)') 'mean_power_db=', mean_db
+        write(out_unit,'(a,f0.0)') 'peak_frequency_hz=', peak_freq
+        write(out_unit,'(a,f0.2)') 'peak_power_db=', peak_power
+        write(out_unit,'(a,a,1x,a)') 'peak_timestamp=', trim(peak_date), trim(peak_time)
+        write(out_unit,'(a,f0.0)') 'peak_row_start_hz=', peak_row_start
+        write(out_unit,'(a,f0.0)') 'peak_row_end_hz=', peak_row_end
+        write(out_unit,'(a,i0)') 'bad_values=', bad_values
+    end subroutine write_summary
+
+    subroutine make_summary_path(input_path, out_dir, output_path)
+        character(len=*), intent(in) :: input_path
+        character(len=*), intent(in) :: out_dir
+        character(len=*), intent(out) :: output_path
+
+        character(len=1024) :: base
+        integer :: i
+        integer :: start_pos
+        integer :: end_pos
+        integer :: n
+
+        n = len_trim(input_path)
+        start_pos = 1
+
+        do i = n, 1, -1
+            if (input_path(i:i) == '/') then
+                start_pos = i + 1
+                exit
+            end if
+        end do
+
+        base = input_path(start_pos:n)
+        end_pos = len_trim(base)
+
+        if (end_pos > 4) then
+            if (base(end_pos-3:end_pos) == '.csv') then
+                base = base(1:end_pos-4)
+            end if
+        end if
+
+        output_path = trim(out_dir) // '/' // trim(base) // '.summary'
+    end subroutine make_summary_path
 
     subroutine next_token(str, pos, token, found)
         character(len=*), intent(in) :: str
