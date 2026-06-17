@@ -5,9 +5,15 @@ BINDIR=$(PREFIX)/bin
 
 SCRIPTS=sm-capture sm-preflight sm-config-test sm-init-dirs
 
-all:
-	@echo "No compiled targets yet."
-	@echo "Run 'make install OS=freebsd' or 'make install OS=linux'."
+FC=gfortran
+FFLAGS=-O2 -Wall
+PROCESS_BIN=sm-process
+PROCESS_SRC=src/fortran/process/sm_process.f90
+
+all: $(PROCESS_BIN)
+
+$(PROCESS_BIN): $(PROCESS_SRC)
+	$(FC) $(FFLAGS) -o $(PROCESS_BIN) $(PROCESS_SRC)
 
 install:
 	install -d $(DESTDIR)$(BINDIR)
@@ -16,6 +22,9 @@ install:
 		chmod 755 $(DESTDIR)$(BINDIR)/$$script; \
 		echo "Installed $(DESTDIR)$(BINDIR)/$$script"; \
 	done
+
+	install -m 755 $(PROCESS_BIN) $(DESTDIR)$(BINDIR)/$(PROCESS_BIN)
+	echo "Installed $(DESTDIR)$(BINDIR)/$(PROCESS_BIN)"
 
 	@if [ "$(OS)" = "freebsd" ]; then \
 		install -d $(DESTDIR)$(PREFIX)/etc; \
@@ -33,6 +42,7 @@ install:
 clean:
 	find src -name '*.o' -delete
 	find src -name '*.mod' -delete
+	rm -f $(PROCESS_BIN)
 
 check:
 	@for script in $(SCRIPTS); do \
