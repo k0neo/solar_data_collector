@@ -1,0 +1,172 @@
+#!/bin/sh
+
+set -u
+
+PREFIX="@PREFIX@"
+CONFIG_FILE="${1:-${PREFIX}/etc/solar-monitor.conf}"
+
+get_config() {
+    section="$1"
+    key="$2"
+
+    awk -F= -v section="[$section]" -v key="$key" '
+        BEGIN {
+            in_section = 0
+        }
+
+        /^[[:space:]]*#/ {
+            next
+        }
+
+        /^[[:space:]]*$/ {
+            next
+        }
+
+        /^\[/ {
+            line = $0
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+            in_section = (line == section)
+            next
+        }
+
+        in_section && index($0, "=") > 0 {
+            lhs = $1
+            rhs = substr($0, index($0, "=") + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", rhs)
+
+            if (lhs == key) {
+                print rhs
+                exit
+            }
+        }
+    ' "$CONFIG_FILE"
+}
+
+get_index() {
+    key="$1"
+
+    awk -F= -v key="$key" '
+        index($0, "=") > 0 {
+            lhs = $1
+            rhs = substr($0, index($0, "=") + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", rhs)
+
+            if (lhs == key) {
+                print rhs
+                exit
+            }
+        }
+    ' "$INDEX_FILE"
+}
+
+is_true() {
+    case "$1" in
+        true|TRUE|yes|YES|1|on|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+echo "solar-monitor publish"
+echo "====================="
+echo ""
+
+[ -f "$CONFIG_FILE" ] || fail "config file not found: $CONFIG_FILE"
+
+station_callsign="$(get_config station callsign)"
+station_name="$(get_config station name)"
+
+index_dir="$(get_config paths index_dir)"
+publish_dir="$(get_config paths publish_dir)"
+bbs_dir="$(get_config paths bbs_dir)"
+
+web_enabled="$(get_config publishing web_enabled)"
+bbs_enabled="$(get_config publishing bbs_enabled)"
+text_enabled="$(get_config publishing text_enabled)"
+
+[ -n "$index_dir" ] || fail "missing [paths] index_dir"
+[ -n "$publish_dir" ] || fail "missing [paths] publish_dir"
+[ -n "$bbs_dir" ] || fail "missing [paths] bbs_dir"
+
+[ -n "$station_callsign" ] || station_callsign="UNKNOWN"
+[ -n "$station_name" ] || station_name="Solar Radio Monitor"
+[ -n "$web_enabled" ] || web_enabled="false"
+[ -n "$bbs_enabled" ] || bbs_enabled="false"
+[ -n "$text_enabled" ] || text_enabled="true"
+
+INDEX_FILE="${index_dir}/latest.index"
+
+[ -f "$INDEX_FILE" ] || fail "index file not found: $INDEX_FILE"
+
+latest_summary="$(get_index latest_summary)"
+last_capture_start="$(get_index last_capture_start)"
+last_capture_end="$(get_index last_capture_end)"
+mean_power_db="$(get_index mean_power_db)"
+peak_frequency_hz="$(get_index peak_frequency_hz)"
+peak_power_db="$(get_index peak_power_db)"
+bad_values="$(get_index bad_values)"
+status="$(get_index status)"
+
+[ -n "$latest_summary" ] || fail "index missing latest_summary"
+[ -n "$last_capture_start" ] || fail "index missing last_capture_start"
+[ -n "$last_capture_end" ] || fail "index missing last_capture_end"
+[ -n "$mean_power_db" ] || fail "index missing mean_power_db"
+[ -n "$peak_frequency_hz" ] || fail "index missing peak_frequency_hz"
+[ -n "$peak_power_db" ] || fail "index missing peak_power_db"
+[ -n "$bad_values" ] || fail "index missing bad_values"
+[ -n "$status" ] || fail "index missing status"
+
+TMP_FILE="$(mktemp /tmp/solar-monitor-publish.XXXXXX)" || fail "could not create temporary file"
+
+{
+    echo "${station_callsign} Solar Radio Monitor"
+    echo "========================="
+    echo ""
+    echo "$station_name"
+    echo ""
+    echo "Last capture: ${last_capture_start} to ${last_capture_end}"
+    echo "Mean power:   ${mean_power_db} dB"
+    echo "Peak signal:  ${peak_frequency_hz} Hz at ${peak_power_db} dB"
+    echo "Bad values:   ${bad_values}"
+    echo "Status:       ${status}"
+    echo ""
+    echo "Source summary:"
+    echo "$latest_summary"
+} > "$TMP_FILE"
+
+published_any=0
+
+if is_true "$text_enabled" && is_true "$web_enabled"; then
+    mkdir -p "$publish_dir" || fail "could not create publish directory: $publish_dir"
+    cp "$TMP_FILE" "${publish_dir}/latest.txt" || fail "could not write ${publish_dir}/latest.txt"
+    echo "Published web text: ${publish_dir}/latest.txt"
+    published_any=1
+fi
+
+if is_true "$text_enabled" && is_true "$bbs_enabled"; then
+    mkdir -p "$bbs_dir" || fail "could not create BBS directory: $bbs_dir"
+    cp "$TMP_FILE" "${bbs_dir}/latest.txt" || fail "could not write ${bbs_dir}/latest.txt"
+    echo "Published BBS text: ${bbs_dir}/latest.txt"
+    published_any=1
+fi
+
+rm -f "$TMP_FILE"
+
+if [ "$published_any" -eq 0 ]; then
+    fail "nothing published; check [publishing] text_enabled, web_enabled, and bbs_enabled"
+fi
+
+echo ""
+echo "Publish complete."
