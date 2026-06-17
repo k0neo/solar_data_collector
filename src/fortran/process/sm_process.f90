@@ -244,17 +244,17 @@ contains
         write(out_unit,'(a,i0)') 'power_samples=', sample_count
         write(out_unit,'(a,a,1x,a)') 'first_timestamp=', trim(first_date), trim(first_time)
         write(out_unit,'(a,a,1x,a)') 'last_timestamp=', trim(last_date), trim(last_time)
-        write(out_unit,'(a,f0.0)') 'lowest_frequency_hz=', min_freq
-        write(out_unit,'(a,f0.0)') 'highest_frequency_hz=', max_freq
+        write(out_unit,'(a,i0)') 'lowest_frequency_hz=', nint(min_freq, int64)
+        write(out_unit,'(a,i0)') 'highest_frequency_hz=', nint(max_freq, int64)
         write(out_unit,'(a,f0.2)') 'bin_width_hz=', first_bin_width
         write(out_unit,'(a,f0.2)') 'minimum_power_db=', min_db
         write(out_unit,'(a,f0.2)') 'maximum_power_db=', max_db
         write(out_unit,'(a,f0.2)') 'mean_power_db=', mean_db
-        write(out_unit,'(a,f0.0)') 'peak_frequency_hz=', peak_freq
+        write(out_unit,'(a,i0)') 'peak_frequency_hz=', nint(peak_freq, int64)
         write(out_unit,'(a,f0.2)') 'peak_power_db=', peak_power
         write(out_unit,'(a,a,1x,a)') 'peak_timestamp=', trim(peak_date), trim(peak_time)
-        write(out_unit,'(a,f0.0)') 'peak_row_start_hz=', peak_row_start
-        write(out_unit,'(a,f0.0)') 'peak_row_end_hz=', peak_row_end
+        write(out_unit,'(a,i0)') 'peak_row_start_hz=', nint(peak_row_start, int64)
+        write(out_unit,'(a,i0)') 'peak_row_end_hz=', nint(peak_row_end, int64)
         write(out_unit,'(a,i0)') 'bad_values=', bad_values
     end subroutine write_summary
 
