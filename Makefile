@@ -10,12 +10,18 @@ FFLAGS=-O2 -Wall
 PROCESS_BIN=sm-process
 PROCESS_SRC=src/fortran/process/sm_process.f90
 
-all: $(PROCESS_BIN)
+INDEX_BIN=sm-index
+INDEX_SRC=src/fortran/index/sm_index.f90
+
+all: $(PROCESS_BIN) $(INDEX_BIN)
 
 $(PROCESS_BIN): $(PROCESS_SRC)
 	$(FC) $(FFLAGS) -o $(PROCESS_BIN) $(PROCESS_SRC)
 
-install: $(PROCESS_BIN)
+$(INDEX_BIN): $(INDEX_SRC)
+	$(FC) $(FFLAGS) -o $(INDEX_BIN) $(INDEX_SRC)
+
+install: $(PROCESS_BIN) $(INDEX_BIN)
 	install -d $(DESTDIR)$(BINDIR)
 	@for script in $(SCRIPTS); do \
 		sed 's|@PREFIX@|$(PREFIX)|g' scripts/$$script.in > $(DESTDIR)$(BINDIR)/$$script; \
@@ -39,10 +45,13 @@ install: $(PROCESS_BIN)
 		exit 1; \
 	fi
 
+	install -m 755 $(INDEX_BIN) $(DESTDIR)$(BINDIR)/$(INDEX_BIN)
+	echo "Installed $(DESTDIR)$(BINDIR)/$(INDEX_BIN)"
+
 clean:
 	find src -name '*.o' -delete
 	find src -name '*.mod' -delete
-	rm -f $(PROCESS_BIN)
+	rm -f $(PROCESS_BIN) $(INDEX_BIN)
 
 check:
 	@for script in $(SCRIPTS); do \
