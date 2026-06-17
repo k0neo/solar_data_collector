@@ -1,0 +1,116 @@
+#!/bin/sh
+
+CONFIG_FILE="${1:-/usr/local/etc/solar-monitor.conf}"
+RUN_USER="$2"
+
+if [ -z "$RUN_USER" ]; then
+    echo "Usage: sm-init-dirs <config-file> <run-user>" >&2
+    echo "Example: sm-init-dirs /usr/local/etc/solar-monitor.conf rbrown" >&2
+    exit 1
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "FAIL: sm-init-dirs must be run as root" >&2
+    exit 1
+fi
+
+if ! id "$RUN_USER" >/dev/null 2>&1; then
+    echo "FAIL: user does not exist: $RUN_USER" >&2
+    exit 1
+fi
+
+RUN_GROUP="$(id -gn "$RUN_USER")"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "FAIL: config file not found: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+if command -v sm-config-test >/dev/null 2>&1; then
+    sm-config-test "$CONFIG_FILE" >/dev/null 2>&1
+    STATUS="$?"
+
+    if [ "$STATUS" -ne 0 ]; then
+        echo "FAIL: config validation failed: $CONFIG_FILE" >&2
+        echo "Run: sm-config-test $CONFIG_FILE" >&2
+        exit "$STATUS"
+    fi
+fi
+
+get_config() {
+    section="$1"
+    key="$2"
+
+    awk -F= -v section="[$section]" -v key="$key" '
+        $0 == section {
+            in_section = 1
+            next
+        }
+
+        /^\[/ {
+            in_section = 0
+        }
+
+        in_section {
+            lhs = $1
+            rhs = $0
+            sub(/^[^=]*=/, "", rhs)
+
+            gsub(/^[ \t]+|[ \t]+$/, "", lhs)
+            gsub(/^[ \t]+|[ \t]+$/, "", rhs)
+
+            if (lhs == key) {
+                print rhs
+                exit
+            }
+        }
+    ' "$CONFIG_FILE"
+}
+
+RAW_DIR="$(get_config paths raw_dir)"
+PROCESSED_DIR="$(get_config paths processed_dir)"
+INDEX_DIR="$(get_config paths index_dir)"
+PUBLISH_DIR="$(get_config paths publish_dir)"
+BBS_DIR="$(get_config paths bbs_dir)"
+LOG_FILE="$(get_config paths log_file)"
+LOG_DIR="$(dirname "$LOG_FILE")"
+
+echo "solar-monitor runtime directory initialization"
+echo "=============================================="
+echo
+echo "Config: $CONFIG_FILE"
+echo "Run user: $RUN_USER"
+echo "Run group: $RUN_GROUP"
+echo
+
+for dir in "$RAW_DIR" "$PROCESSED_DIR" "$INDEX_DIR" "$PUBLISH_DIR" "$BBS_DIR"; do
+    if [ -z "$dir" ]; then
+        echo "FAIL: empty directory path found in config" >&2
+        exit 1
+    fi
+
+    mkdir -p "$dir"
+    chown -R "$RUN_USER:$RUN_GROUP" "$dir"
+    chmod 755 "$dir"
+
+    echo "OK: directory ready: $dir"
+done
+
+if [ -z "$LOG_DIR" ]; then
+    echo "FAIL: empty log directory path found in config" >&2
+    exit 1
+fi
+
+mkdir -p "$LOG_DIR"
+chmod 755 "$LOG_DIR"
+
+echo "OK: log directory exists: $LOG_DIR"
+
+touch "$LOG_FILE"
+chown "$RUN_USER:$RUN_GROUP" "$LOG_FILE"
+chmod 644 "$LOG_FILE"
+
+echo "OK: log file ready: $LOG_FILE"
+echo
+echo "Runtime directories initialized."
+exit 0

@@ -3,7 +3,7 @@ OS?=freebsd
 
 BINDIR=$(PREFIX)/bin
 
-SCRIPTS=sm-capture sm-preflight sm-config-test
+SCRIPTS=sm-capture sm-preflight sm-config-test sm-init-dirs
 
 all:
 	@echo "No compiled targets yet."
