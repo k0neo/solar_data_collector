@@ -32,9 +32,13 @@ clean:
 	find src -name '*.mod' -delete
 
 check:
-	sh -n scripts/sm-capture.in
-	sh -n scripts/sm-preflight.in
+	@for script in $(SCRIPTS); do \
+		sh -n scripts/$$script.in || exit 1; \
+	done
 	@echo "Script syntax checks passed."
+
+config-test:
+	sh scripts/sm-config-test.in /usr/local/etc/solar-monitor.conf
 
 preflight:
 	@sm-preflight /usr/local/etc/solar-monitor.conf || { \
@@ -43,4 +47,4 @@ preflight:
 		exit 1; \
 	}
 
-.PHONY: all install clean check preflight
+.PHONY: all install clean check config-test preflight
