@@ -15,7 +15,7 @@ all: $(PROCESS_BIN)
 $(PROCESS_BIN): $(PROCESS_SRC)
 	$(FC) $(FFLAGS) -o $(PROCESS_BIN) $(PROCESS_SRC)
 
-install:
+install: $(PROCESS_BIN)
 	install -d $(DESTDIR)$(BINDIR)
 	@for script in $(SCRIPTS); do \
 		sed 's|@PREFIX@|$(PREFIX)|g' scripts/$$script.in > $(DESTDIR)$(BINDIR)/$$script; \
