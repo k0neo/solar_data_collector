@@ -25,6 +25,14 @@ program sm_process
     real(real64) :: min_db
     real(real64) :: max_db
     real(real64) :: sum_db
+    real(real64) :: current_freq
+    real(real64) :: peak_freq
+    real(real64) :: peak_row_start
+    real(real64) :: peak_row_end
+    real(real64) :: peak_power
+    integer(int64) :: row_sample_index
+    character(len=64) :: peak_date
+    character(len=64) :: peak_time
     logical :: found
     logical :: have_data
 
@@ -50,6 +58,12 @@ program sm_process
     sum_db = 0.0_real64
     min_db = huge(min_db)
     max_db = -huge(max_db)
+    peak_power = -huge(peak_power)
+    peak_freq = 0.0_real64
+    peak_row_start = 0.0_real64
+    peak_row_end = 0.0_real64
+    peak_date = ''
+    peak_time = ''
     min_freq = huge(min_freq)
     max_freq = -huge(max_freq)
     first_bin_width = 0.0_real64
@@ -105,10 +119,12 @@ program sm_process
         if (f_start < min_freq) min_freq = f_start
         if (f_end > max_freq) max_freq = f_end
 
+        row_sample_index = 0_int64
+
         do
             call next_token(line, pos, token, found)
             if (.not. found) exit
-
+            
             read(token, *, iostat=ios) value
 
             if (ios /= 0) then
@@ -118,6 +134,17 @@ program sm_process
 
             sample_count = sample_count + 1_int64
             sum_db = sum_db + value
+            row_sample_index = row_sample_index + 1_int64
+            current_freq = f_start + (real(row_sample_index, real64) - 0.5_real64) * bin_width
+
+            if (value > peak_power) then
+                peak_power = value
+                peak_freq = current_freq
+                peak_row_start = f_start
+                peak_row_end = f_end
+                peak_date = last_date
+                peak_time = last_time
+            end if
 
             if (value < min_db) min_db = value
             if (value > max_db) max_db = value
@@ -155,6 +182,11 @@ program sm_process
     write(*,'(a,f10.2,a)') 'Minimum power: ', min_db, ' dB'
     write(*,'(a,f10.2,a)') 'Maximum power: ', max_db, ' dB'
     write(*,'(a,f10.2,a)') 'Mean power:    ', sum_db / real(sample_count, real64), ' dB'
+    write(*,'(a)') ''
+    write(*,'(a,f12.0,a)') 'Peak frequency: ', peak_freq, ' Hz'
+    write(*,'(a,f10.2,a)') 'Peak power:     ', peak_power, ' dB'
+    write(*,'(a,a,1x,a)') 'Peak timestamp: ', trim(peak_date), trim(peak_time)
+    write(*,'(a,f12.0,a,f12.0,a)') 'Peak row span:  ', peak_row_start, ' - ', peak_row_end, ' Hz'
     write(*,'(a,i0)') 'Bad values: ', bad_values
 
 contains
