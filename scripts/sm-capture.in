@@ -7,6 +7,17 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
+if command -v sm-config-test >/dev/null 2>&1; then
+    sm-config-test "$CONFIG_FILE" >/dev/null 2>&1
+    STATUS="$?"
+
+    if [ "$STATUS" -ne 0 ]; then
+        echo "Config validation failed: $CONFIG_FILE" >&2
+        echo "Run: sm-config-test $CONFIG_FILE" >&2
+        exit "$STATUS"
+    fi
+fi
+
 get_config() {
     section="$1"
     key="$2"
