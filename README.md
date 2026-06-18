@@ -82,7 +82,7 @@ Initialize runtime directories:
 
 ```sh
 su -
-sm-init-dirs /usr/local/etc/solar-monitor.conf rbrown
+sm-init-dirs /usr/local/etc/solar-monitor.conf username
 exit
 ```
 
