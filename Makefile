@@ -3,7 +3,7 @@ OS?=freebsd
 
 BINDIR=$(PREFIX)/bin
 
-SCRIPTS=sm-capture sm-preflight sm-config-test sm-init-dirs sm-publish
+SCRIPTS=sm-capture sm-preflight sm-config-test sm-init-dirs sm-publish sm-run
 
 FC=gfortran
 FFLAGS=-O2 -Wall

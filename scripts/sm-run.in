@@ -1,0 +1,100 @@
+#!/bin/sh
+
+set -u
+
+PREFIX="@PREFIX@"
+CONFIG_FILE="${1:-${PREFIX}/etc/solar-monitor.conf}"
+
+get_config() {
+    section="$1"
+    key="$2"
+
+    awk -F= -v section="[$section]" -v key="$key" '
+        BEGIN {
+            in_section = 0
+        }
+
+        /^[[:space:]]*#/ {
+            next
+        }
+
+        /^[[:space:]]*$/ {
+            next
+        }
+
+        /^\[/ {
+            line = $0
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+            in_section = (line == section)
+            next
+        }
+
+        in_section && index($0, "=") > 0 {
+            lhs = $1
+            rhs = substr($0, index($0, "=") + 1)
+
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", rhs)
+
+            if (lhs == key) {
+                print rhs
+                exit
+            }
+        }
+    ' "$CONFIG_FILE"
+}
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+echo "solar-monitor run"
+echo "================="
+echo ""
+
+[ -f "$CONFIG_FILE" ] || fail "config file not found: $CONFIG_FILE"
+
+raw_dir="$(get_config paths raw_dir)"
+processed_dir="$(get_config paths processed_dir)"
+index_dir="$(get_config paths index_dir)"
+
+[ -n "$raw_dir" ] || fail "missing [paths] raw_dir"
+[ -n "$processed_dir" ] || fail "missing [paths] processed_dir"
+[ -n "$index_dir" ] || fail "missing [paths] index_dir"
+
+echo "Config: $CONFIG_FILE"
+echo "Raw dir: $raw_dir"
+echo "Processed dir: $processed_dir"
+echo "Index dir: $index_dir"
+echo ""
+
+echo "Step 1: preflight"
+sm-preflight "$CONFIG_FILE" || fail "preflight failed"
+echo ""
+
+echo "Step 2: capture"
+sm-capture "$CONFIG_FILE" || fail "capture failed"
+echo ""
+
+latest_raw="$(ls -t "$raw_dir"/*.csv 2>/dev/null | head -1)"
+[ -n "$latest_raw" ] || fail "no raw CSV files found in $raw_dir"
+
+echo "Step 3: process"
+echo "Raw file: $latest_raw"
+sm-process "$latest_raw" "$processed_dir" || fail "processing failed"
+echo ""
+
+latest_summary="$(ls -t "$processed_dir"/*.summary 2>/dev/null | head -1)"
+[ -n "$latest_summary" ] || fail "no summary files found in $processed_dir"
+
+echo "Step 4: index"
+echo "Summary file: $latest_summary"
+sm-index "$latest_summary" "$index_dir" || fail "indexing failed"
+echo ""
+
+echo "Step 5: publish"
+sm-publish "$CONFIG_FILE" || fail "publishing failed"
+echo ""
+
+echo "Run complete."
