@@ -15,3 +15,7 @@ Solar_Data_Collection.bfproject
 
 # Local backup files
 *.bak
+
+# Build products
+sm-process
+sm-index
