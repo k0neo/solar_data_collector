@@ -151,6 +151,7 @@ published_any=0
 if is_true "$text_enabled" && is_true "$web_enabled"; then
     mkdir -p "$publish_dir" || fail "could not create publish directory: $publish_dir"
     cp "$TMP_FILE" "${publish_dir}/latest.txt" || fail "could not write ${publish_dir}/latest.txt"
+    chmod 644 "${publish_dir}/latest.txt" || fail "could not set permissions on ${publish_dir}/latest.txt"
     echo "Published web text: ${publish_dir}/latest.txt"
     published_any=1
 fi
@@ -158,6 +159,7 @@ fi
 if is_true "$text_enabled" && is_true "$bbs_enabled"; then
     mkdir -p "$bbs_dir" || fail "could not create BBS directory: $bbs_dir"
     cp "$TMP_FILE" "${bbs_dir}/latest.txt" || fail "could not write ${bbs_dir}/latest.txt"
+    chmod 644 "${bbs_dir}/latest.txt" || fail "could not set permissions on ${bbs_dir}/latest.txt"
     echo "Published BBS text: ${bbs_dir}/latest.txt"
     published_any=1
 fi
