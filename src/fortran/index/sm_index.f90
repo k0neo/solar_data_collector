@@ -27,6 +27,7 @@ program sm_index
     integer :: unit
     integer :: out_unit
     integer :: hist_unit
+    integer :: hist_read_unit
     integer :: ios
 
     logical :: have_first
@@ -42,6 +43,7 @@ program sm_index
     logical :: have_peak_row_end
     logical :: have_bad_values
     logical :: history_exists
+    logical :: history_duplicate
 
     argc = command_argument_count()
 
@@ -87,6 +89,7 @@ program sm_index
     have_peak_row_start = .false.
     have_peak_row_end = .false.
     have_bad_values = .false.
+    history_duplicate = .false.
 
     open(newunit=unit, file=trim(summary_file), status='old', action='read', iostat=ios)
 
@@ -196,34 +199,56 @@ program sm_index
 
     inquire(file=trim(history_file), exist=history_exists)
 
-    open(newunit=hist_unit, file=trim(history_file), status='unknown', position='append', action='write', iostat=ios)
+    if (history_exists) then
+        open(newunit=hist_read_unit, file=trim(history_file), status='old', action='read', iostat=ios)
 
-    if (ios /= 0) then
-        write(*,'(a)') 'FAIL: could not write history file: ' // trim(history_file)
-        stop 1
+        if (ios /= 0) then
+            write(*,'(a)') 'FAIL: could not read history file: ' // trim(history_file)
+            stop 1
+        end if
+
+        do
+            read(hist_read_unit, '(A)', iostat=ios) line
+            if (ios /= 0) exit
+
+            if (index(trim(line), trim(summary_file)) > 0) then
+                history_duplicate = .true.
+                exit
+            end if
+        end do
+
+        close(hist_read_unit)
     end if
 
-    if (.not. history_exists) then
-        write(hist_unit,'(a)') 'capture_start,capture_end,power_samples,lowest_frequency_hz,highest_frequency_hz,bin_width_hz,mean_power_db,peak_frequency_hz,peak_power_db,peak_row_start_hz,peak_row_end_hz,bad_values,status,summary_file'
+    if (.not. history_duplicate) then
+        open(newunit=hist_unit, file=trim(history_file), status='unknown', position='append', action='write', iostat=ios)
+
+        if (ios /= 0) then
+            write(*,'(a)') 'FAIL: could not write history file: ' // trim(history_file)
+            stop 1
+        end if
+
+        if (.not. history_exists) then
+            write(hist_unit,'(a)') 'capture_start,capture_end,power_samples,lowest_frequency_hz,highest_frequency_hz,bin_width_hz,mean_power_db,peak_frequency_hz,peak_power_db,peak_row_start_hz,peak_row_end_hz,bad_values,status,summary_file'
+        end if
+
+        write(hist_unit,'(a)') trim(first_timestamp) // ',' // &
+            trim(last_timestamp) // ',' // &
+            trim(power_samples) // ',' // &
+            trim(lowest_frequency_hz) // ',' // &
+            trim(highest_frequency_hz) // ',' // &
+            trim(bin_width_hz) // ',' // &
+            trim(mean_power_db) // ',' // &
+            trim(peak_frequency_hz) // ',' // &
+            trim(peak_power_db) // ',' // &
+            trim(peak_row_start_hz) // ',' // &
+            trim(peak_row_end_hz) // ',' // &
+            trim(bad_values) // ',' // &
+            trim(status_text) // ',' // &
+            trim(summary_file)
+
+        close(hist_unit)
     end if
-
-    write(hist_unit,'(a)') trim(first_timestamp) // ',' // &
-        trim(last_timestamp) // ',' // &
-        trim(power_samples) // ',' // &
-        trim(lowest_frequency_hz) // ',' // &
-        trim(highest_frequency_hz) // ',' // &
-        trim(bin_width_hz) // ',' // &
-        trim(mean_power_db) // ',' // &
-        trim(peak_frequency_hz) // ',' // &
-        trim(peak_power_db) // ',' // &
-        trim(peak_row_start_hz) // ',' // &
-        trim(peak_row_end_hz) // ',' // &
-        trim(bad_values) // ',' // &
-        trim(status_text) // ',' // &
-        trim(summary_file)
-
-    close(hist_unit)
-
     write(*,'(a)') 'solar-monitor index'
     write(*,'(a)') '==================='
     write(*,'(a)') ''
@@ -240,6 +265,12 @@ program sm_index
     write(*,'(a)') 'Peak row:     ' // trim(peak_row_start_hz) // ' - ' // trim(peak_row_end_hz) // ' Hz'
     write(*,'(a)') 'Bad values:   ' // trim(bad_values)
     write(*,'(a)') 'Status:       ' // trim(status_text)
+
+    if (history_duplicate) then
+        write(*,'(a)') 'History:      skipped duplicate summary'
+    else
+        write(*,'(a)') 'History:      appended'
+    end if
 
 contains
 
