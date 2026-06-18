@@ -12,3 +12,6 @@ build/
 # Editor/manual backup files
 *.old
 Solar_Data_Collection.bfproject
+
+# Local backup files
+*.bak
